@@ -1,0 +1,12 @@
+.env
+.env.*
+credentials/
+data/
+bin/
+*.db*
+*.sqlite*
+*.bbolt
+*.json
+*.pem
+*.key
+.git/

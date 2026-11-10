@@ -1,0 +1,45 @@
+# Binaries & build outputs
+backend/bin/
+backend/data/
+data/
+*.db*
+*.sqlite*
+*.bbolt
+*.tsbuildinfo
+
+# Credentials, env & local secrets
+.env
+.env.*
+!.env.example
+credentials/
+*service-account*.json
+*credentials*.json
+*client_secret*.json
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+*.der
+*.jks
+*.json
+!package.json
+!package-lock.json
+!tsconfig*.json
+!components.json
+!web/public/manifest.json
+
+# Node & Web build
+web/node_modules/
+web/dist/
+web/dev-dist/
+web/.vite/
+coverage/
+
+# OS & IDE
+.DS_Store
+.idea/
+.vscode/
+
+docs/
