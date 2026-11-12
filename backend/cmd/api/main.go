@@ -72,6 +72,7 @@ func main() {
 			cfg.SpreadsheetID,
 			cfg.MedicinesSheetName,
 			cfg.AdminsSheetName,
+			gsheet.WithImpersonateServiceAccount(cfg.GoogleImpersonateServiceAccount),
 		)
 		if err != nil {
 			logger.Error("failed to initialize google sheets client", "error", err)

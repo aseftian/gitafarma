@@ -13,10 +13,11 @@ type Config struct {
 	AppEnv                  string
 	HTTPAddr                string
 	CORSAllowedOrigins      []string
-	StorageDriver           string
-	StoragePath             string
-	GoogleCredentialsFile   string
-	SpreadsheetID           string
+	StorageDriver                   string
+	StoragePath                     string
+	GoogleCredentialsFile           string
+	GoogleImpersonateServiceAccount string
+	SpreadsheetID                   string
 	MedicinesSheetName      string
 	AdminsSheetName         string
 	SyncInterval            time.Duration
@@ -61,10 +62,11 @@ func Load() (Config, error) {
 		AppEnv:                 getEnv("APP_ENV", "development"),
 		HTTPAddr:               getEnv("HTTP_ADDR", ":8080"),
 		CORSAllowedOrigins:     origins,
-		StorageDriver:          getEnv("STORAGE_DRIVER", "sqlite"),
-		StoragePath:            getEnv("STORAGE_PATH", "./data/gitafarma.db"),
-		GoogleCredentialsFile:  getEnv("GOOGLE_APPLICATION_CREDENTIALS", "./credentials/service-account.json"),
-		SpreadsheetID:          os.Getenv("GSHEET_SPREADSHEET_ID"),
+		StorageDriver:                   getEnv("STORAGE_DRIVER", "sqlite"),
+		StoragePath:                     getEnv("STORAGE_PATH", "./data/gitafarma.db"),
+		GoogleCredentialsFile:           strings.TrimSpace(os.Getenv("GOOGLE_APPLICATION_CREDENTIALS")),
+		GoogleImpersonateServiceAccount: strings.TrimSpace(os.Getenv("GOOGLE_IMPERSONATE_SERVICE_ACCOUNT")),
+		SpreadsheetID:                   os.Getenv("GSHEET_SPREADSHEET_ID"),
 		MedicinesSheetName:     getEnv("GSHEET_MEDICINES_SHEET", "medicines"),
 		AdminsSheetName:        getEnv("GSHEET_ADMINS_SHEET", "admins"),
 		SyncInterval:           syncInterval,
