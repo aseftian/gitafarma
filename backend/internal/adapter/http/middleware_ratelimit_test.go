@@ -45,3 +45,21 @@ func TestRateLimiter_EnforcesBurstAndRefills(t *testing.T) {
 		t.Fatalf("refilled req expected 200, got %d", code)
 	}
 }
+
+func TestClientIP_PreventsXFFSpoofing(t *testing.T) {
+	// 1. Direct untrusted public peer spoofing X-Forwarded-For -> ignored, uses RemoteAddr
+	reqDirect := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqDirect.RemoteAddr = "203.0.113.50:54321"
+	reqDirect.Header.Set("X-Forwarded-For", "1.2.3.4")
+	if got := clientIP(reqDirect); got != "203.0.113.50" {
+		t.Fatalf("expected direct peer IP 203.0.113.50, got %q", got)
+	}
+
+	// 2. Behind trusted Docker proxy (172.18.0.2): client spoofed 1.2.3.4, proxy appended real IP 198.51.100.77
+	reqProxied := httptest.NewRequest(http.MethodGet, "/", nil)
+	reqProxied.RemoteAddr = "172.18.0.2:41000"
+	reqProxied.Header.Set("X-Forwarded-For", "1.2.3.4, 198.51.100.77")
+	if got := clientIP(reqProxied); got != "198.51.100.77" {
+		t.Fatalf("expected rightmost proxy-appended IP 198.51.100.77, got %q", got)
+	}
+}

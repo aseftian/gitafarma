@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/SherClockHolmes/webpush-go"
 	"github.com/ardisan/gitafarma/backend/internal/domain"
@@ -29,6 +30,7 @@ type WebPushNotifier struct {
 	privateKey string
 	subject    string
 	logger     *slog.Logger
+	httpClient *http.Client
 	sendFn     func(ctx context.Context, payload []byte, sub *webpush.Subscription, opts *webpush.Options) (*http.Response, error)
 }
 
@@ -37,12 +39,14 @@ func NewWebPushNotifier(
 	publicKey, privateKey, subject string,
 	logger *slog.Logger,
 ) *WebPushNotifier {
+	httpClient := &http.Client{Timeout: 10 * time.Second}
 	return &WebPushNotifier{
 		repo:       repo,
 		publicKey:  strings.TrimSpace(publicKey),
 		privateKey: strings.TrimSpace(privateKey),
 		subject:    strings.TrimSpace(subject),
 		logger:     logger,
+		httpClient: httpClient,
 		sendFn: func(ctx context.Context, payload []byte, sub *webpush.Subscription, opts *webpush.Options) (*http.Response, error) {
 			return webpush.SendNotificationWithContext(ctx, payload, sub, opts)
 		},
@@ -101,6 +105,7 @@ func (n *WebPushNotifier) NotifyPriceChanges(ctx context.Context, changes []doma
 				VAPIDPublicKey:  n.publicKey,
 				VAPIDPrivateKey: n.privateKey,
 				TTL:             86400,
+				HTTPClient:      n.httpClient,
 			}
 
 			resp, sendErr := n.sendFn(ctx, raw, wpSub, opts)

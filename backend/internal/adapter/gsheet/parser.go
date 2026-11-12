@@ -77,7 +77,8 @@ func ParseMedicinesSheet(rows [][]any, fallbackTime time.Time) ([]domain.Medicin
 	return out, nil
 }
 
-// MedicineToRow memetakan Medicine ke urutan kolom header Google Sheet yang aktif.
+// MedicineToRow memetakan Medicine ke urutan kolom header Google Sheet yang aktif
+// dengan sanitasi formula injection (OWASP A03:2021).
 func MedicineToRow(headers []string, med domain.Medicine) []any {
 	if len(headers) == 0 {
 		headers = defaultMedicineHeaders
@@ -87,19 +88,19 @@ func MedicineToRow(headers []string, med domain.Medicine) []any {
 		canonical := normalizeHeader(h, medicineHeaderAliases)
 		switch canonical {
 		case "id":
-			row[i] = med.ID
+			row[i] = sanitizeSheetCell(med.ID)
 		case "name":
-			row[i] = med.Name
+			row[i] = sanitizeSheetCell(med.Name)
 		case "barcode":
-			row[i] = med.Barcode
+			row[i] = sanitizeSheetCell(med.Barcode)
 		case "sku":
-			row[i] = med.SKU
+			row[i] = sanitizeSheetCell(med.SKU)
 		case "price":
 			row[i] = med.Price
 		case "uom":
-			row[i] = med.UOM
+			row[i] = sanitizeSheetCell(med.UOM)
 		case "alt_uom":
-			row[i] = med.AltUOM
+			row[i] = sanitizeSheetCell(med.AltUOM)
 		case "updated_at":
 			row[i] = med.UpdatedAt.UTC().Format(time.RFC3339)
 		default:
@@ -107,6 +108,20 @@ func MedicineToRow(headers []string, med domain.Medicine) []any {
 		}
 	}
 	return row
+}
+
+// sanitizeSheetCell menetralkan karakter awal formula spreadsheet (=, +, -, @, tab, CR)
+// agar tidak dieksekusi sebagai formula di Google Sheets / Excel.
+func sanitizeSheetCell(s string) string {
+	if s == "" {
+		return ""
+	}
+	switch s[0] {
+	case '=', '+', '-', '@', '\t', '\r':
+		return "'" + s
+	default:
+		return s
+	}
 }
 
 // ParseAdminsSheet mem-parsing sheet admins menjadi daftar domain.Admin.

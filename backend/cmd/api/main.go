@@ -85,11 +85,13 @@ func main() {
 	}
 
 	sessionSecret := strings.TrimSpace(cfg.SessionSecret)
-	if len(sessionSecret) < 16 {
-		if cfg.AppEnv == "production" {
-			logger.Error("SESSION_SECRET must be at least 16 characters in production")
+	if cfg.AppEnv == "production" {
+		if len(sessionSecret) < 32 {
+			logger.Error("SESSION_SECRET must be at least 32 characters (256-bit) in production")
 			os.Exit(1)
 		}
+		cfg.SessionCookieSecure = true
+	} else if len(sessionSecret) < 16 {
 		buf := make([]byte, 32)
 		_, _ = rand.Read(buf)
 		sessionSecret = hex.EncodeToString(buf)

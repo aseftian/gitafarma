@@ -67,6 +67,9 @@ func (h *AdminHandler) TriggerSync(w http.ResponseWriter, r *http.Request) {
 func (h *AdminHandler) ListAuditLogs(w http.ResponseWriter, r *http.Request) {
 	limit := 50
 	if l, err := strconv.Atoi(r.URL.Query().Get("limit")); err == nil && l > 0 {
+		if l > 200 {
+			l = 200
+		}
 		limit = l
 	}
 	logs, err := h.settingSvc.ListAuditLogs(r.Context(), limit)

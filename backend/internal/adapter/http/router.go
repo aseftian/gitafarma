@@ -30,7 +30,6 @@ type RouterDeps struct {
 func NewRouter(deps RouterDeps) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(20 * time.Second))
 	r.Use(SecurityHeaders())
@@ -74,7 +73,7 @@ func NewRouter(deps RouterDeps) http.Handler {
 
 		// Auth endpoints
 		api.With(authLimiter.Middleware()).Post("/auth/google", authHandler.LoginGoogle)
-		api.Post("/auth/logout", authHandler.Logout)
+		api.With(RequireCSRF()).Post("/auth/logout", authHandler.Logout)
 		api.With(RequireAdmin(deps.AuthSvc, deps.Logger)).Get("/auth/me", authHandler.Me)
 
 		// Protected Admin endpoints (session cookie + whitelist re-check + CSRF)

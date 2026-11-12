@@ -163,7 +163,7 @@ func (c *Client) UpsertMedicine(ctx context.Context, med domain.Medicine) error 
 			c.spreadsheetID,
 			fmt.Sprintf("%s!A1", c.medicinesSheet),
 			&sheets.ValueRange{Values: [][]any{headerAny}},
-		).ValueInputOption("USER_ENTERED").Context(ctx).Do(); err != nil {
+		).ValueInputOption("RAW").Context(ctx).Do(); err != nil {
 			return fmt.Errorf("write header row: %w", err)
 		}
 	}
@@ -181,7 +181,7 @@ func (c *Client) UpsertMedicine(ctx context.Context, med domain.Medicine) error 
 						c.spreadsheetID,
 						targetRange,
 						&sheets.ValueRange{Values: [][]any{rowValues}},
-					).ValueInputOption("USER_ENTERED").Context(ctx).Do()
+					).ValueInputOption("RAW").Context(ctx).Do()
 					return struct{}{}, callErr
 				})
 				if err != nil {
@@ -197,7 +197,7 @@ func (c *Client) UpsertMedicine(ctx context.Context, med domain.Medicine) error 
 			c.spreadsheetID,
 			fmt.Sprintf("%s!A:A", c.medicinesSheet),
 			&sheets.ValueRange{Values: [][]any{rowValues}},
-		).ValueInputOption("USER_ENTERED").InsertDataOption("INSERT_ROWS").Context(ctx).Do()
+		).ValueInputOption("RAW").InsertDataOption("INSERT_ROWS").Context(ctx).Do()
 		return struct{}{}, callErr
 	})
 	if err != nil {

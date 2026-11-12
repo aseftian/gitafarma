@@ -42,6 +42,9 @@ func (h *AuthHandler) LoginGoogle(w http.ResponseWriter, r *http.Request) {
 
 	res, err := h.svc.LoginWithGoogle(r.Context(), req.IDToken)
 	if err != nil {
+		if h.logger != nil {
+			h.logger.Warn("admin google login failed", "ip", clientIP(r), "error", err)
+		}
 		writeError(w, h.logger, err)
 		return
 	}

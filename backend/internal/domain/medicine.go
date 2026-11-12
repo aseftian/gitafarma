@@ -18,10 +18,13 @@ type Medicine struct {
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-// Validate memeriksa kelayakan field wajib obat sebelum disimpan atau disinkronkan.
+// Validate memeriksa kelayakan field wajib dan batas panjang field obat sebelum disimpan atau disinkronkan.
 func (m Medicine) Validate() error {
 	if strings.TrimSpace(m.Name) == "" {
 		return fmt.Errorf("%w: nama obat wajib diisi", ErrInvalidInput)
+	}
+	if len(m.ID) > 128 || len(m.Name) > 255 || len(m.Barcode) > 64 || len(m.SKU) > 64 || len(m.UOM) > 64 || len(m.AltUOM) > 64 {
+		return fmt.Errorf("%w: panjang karakter field obat melebihi batas maksimum", ErrInvalidInput)
 	}
 	if m.Price < 0 {
 		return fmt.Errorf("%w: harga tidak boleh negatif", ErrInvalidInput)
