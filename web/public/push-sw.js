@@ -24,9 +24,23 @@ self.addEventListener("push", (event) => {
   );
 });
 
+function resolveSafeSameOriginUrl(rawUrl) {
+  try {
+    const resolved = new URL(rawUrl || "/", self.location.origin);
+    if (resolved.origin !== self.location.origin) {
+      return "/";
+    }
+    return resolved.pathname + resolved.search + resolved.hash;
+  } catch {
+    return "/";
+  }
+}
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
-  const targetUrl = (event.notification.data && event.notification.data.url) || "/";
+  const targetUrl = resolveSafeSameOriginUrl(
+    event.notification.data && event.notification.data.url,
+  );
 
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {

@@ -250,3 +250,20 @@ func TestDetectCredentialsTypeAndResolveOptions(t *testing.T) {
 		t.Fatalf("expected 1 option for default ADC mode, got len=%d err=%v", len(opts), err)
 	}
 }
+
+func TestMedicineToRow_SanitizesFormulaInjection(t *testing.T) {
+	row := MedicineToRow(nil, domain.Medicine{
+		ID:        "=CMD()",
+		Name:      "+IMPORTXML(\"http://example.com\",\"//a\")",
+		Barcode:   "-899123",
+		SKU:       "@SUM(1,2)",
+		Price:     10000,
+		UOM:       "Strip",
+		AltUOM:    "\tTablet",
+		UpdatedAt: time.Date(2026, 11, 12, 0, 0, 0, 0, time.UTC),
+	})
+
+	if row[0] != "'=CMD()" || row[1] != "'+IMPORTXML(\"http://example.com\",\"//a\")" || row[2] != "'-899123" || row[3] != "'@SUM(1,2)" || row[5] != "Strip" || row[6] != "'\tTablet" {
+		t.Fatalf("expected formula-prefixed cells to be escaped with leading apostrophe, got %+v", row)
+	}
+}
