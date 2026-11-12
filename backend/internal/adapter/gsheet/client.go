@@ -2,15 +2,32 @@ package gsheet
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/ardisan/gitafarma/backend/internal/domain"
+	"google.golang.org/api/impersonate"
 	"google.golang.org/api/option"
 	"google.golang.org/api/sheets/v4"
 )
+
+// ClientOption mengatur konfigurasi tambahan pada Client Google Sheets.
+type ClientOption func(*clientConfig)
+
+type clientConfig struct {
+	impersonateServiceAccount string
+}
+
+// WithImpersonateServiceAccount mengaktifkan impersonasi Service Account di atas kredensial sumber (WIF/ADC).
+func WithImpersonateServiceAccount(serviceAccountEmail string) ClientOption {
+	return func(cfg *clientConfig) {
+		cfg.impersonateServiceAccount = strings.TrimSpace(serviceAccountEmail)
+	}
+}
 
 // Client membungkus Google Sheets API untuk membaca & menulis sheet obat dan whitelist admin.
 type Client struct {
@@ -21,12 +38,24 @@ type Client struct {
 	writeMu        sync.Mutex
 }
 
-// NewClient membuat client Google Sheets API menggunakan file JSON Google Service Account.
-func NewClient(ctx context.Context, credentialsFile, spreadsheetID, medicinesSheet, adminsSheet string) (*Client, error) {
+// NewClient membuat client Google Sheets API menggunakan Workload Identity Federation (external_account),
+// Application Default Credentials (ADC), Impersonated Service Account, atau file kredensial Google lainnya.
+func NewClient(ctx context.Context, credentialsFile, spreadsheetID, medicinesSheet, adminsSheet string, opts ...ClientOption) (*Client, error) {
 	if strings.TrimSpace(spreadsheetID) == "" {
 		return nil, domain.ErrSheetNotConfigured
 	}
-	svc, err := sheets.NewService(ctx, option.WithAuthCredentialsFile(option.ServiceAccount, credentialsFile), option.WithScopes(sheets.SpreadsheetsScope))
+	var cfg clientConfig
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+
+	apiOpts, err := resolveClientOptions(ctx, credentialsFile, cfg.impersonateServiceAccount)
+	if err != nil {
+		return nil, err
+	}
+	svc, err := sheets.NewService(ctx, apiOpts...)
 	if err != nil {
 		return nil, fmt.Errorf("create google sheets service: %w", err)
 	}
@@ -36,6 +65,70 @@ func NewClient(ctx context.Context, credentialsFile, spreadsheetID, medicinesShe
 		medicinesSheet: medicinesSheet,
 		adminsSheet:    adminsSheet,
 	}, nil
+}
+
+// detectCredentialsType membaca field "type" dari file JSON kredensial Google
+// dan memetakannya ke option.CredentialsType yang sesuai (mis. external_account untuk WIF OIDC).
+func detectCredentialsType(credentialsFile string) (option.CredentialsType, error) {
+	raw, err := os.ReadFile(credentialsFile)
+	if err != nil {
+		return "", fmt.Errorf("read google credentials file %q: %w", credentialsFile, err)
+	}
+	var header struct {
+		Type string `json:"type"`
+	}
+	if err := json.Unmarshal(raw, &header); err != nil {
+		return "", fmt.Errorf("parse google credentials JSON %q: %w", credentialsFile, err)
+	}
+	switch strings.TrimSpace(header.Type) {
+	case string(option.ExternalAccount):
+		return option.ExternalAccount, nil
+	case string(option.ImpersonatedServiceAccount):
+		return option.ImpersonatedServiceAccount, nil
+	case string(option.AuthorizedUser):
+		return option.AuthorizedUser, nil
+	case string(option.ServiceAccount):
+		return option.ServiceAccount, nil
+	case "":
+		return "", fmt.Errorf("google credentials file %q missing required \"type\" field", credentialsFile)
+	default:
+		return "", fmt.Errorf("unsupported google credentials type %q in %q", header.Type, credentialsFile)
+	}
+}
+
+func resolveClientOptions(ctx context.Context, credentialsFile, impersonateSA string) ([]option.ClientOption, error) {
+	credPath := strings.TrimSpace(credentialsFile)
+	targetSA := strings.TrimSpace(impersonateSA)
+
+	var baseCredOpt option.ClientOption
+	if credPath != "" {
+		credType, err := detectCredentialsType(credPath)
+		if err != nil {
+			return nil, err
+		}
+		baseCredOpt = option.WithAuthCredentialsFile(credType, credPath)
+	}
+
+	if targetSA != "" {
+		var impOpts []option.ClientOption
+		if baseCredOpt != nil {
+			impOpts = append(impOpts, baseCredOpt)
+		}
+		ts, err := impersonate.CredentialsTokenSource(ctx, impersonate.CredentialsConfig{
+			TargetPrincipal: targetSA,
+			Scopes:          []string{sheets.SpreadsheetsScope},
+		}, impOpts...)
+		if err != nil {
+			return nil, fmt.Errorf("create impersonated token source for %q: %w", targetSA, err)
+		}
+		return []option.ClientOption{option.WithTokenSource(ts)}, nil
+	}
+
+	opts := []option.ClientOption{option.WithScopes(sheets.SpreadsheetsScope)}
+	if baseCredOpt != nil {
+		opts = append(opts, baseCredOpt)
+	}
+	return opts, nil
 }
 
 func (c *Client) FetchAllMedicines(ctx context.Context) ([]domain.Medicine, error) {

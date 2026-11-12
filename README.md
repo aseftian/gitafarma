@@ -20,10 +20,25 @@ Aplikasi PWA satu sumber referensi harga obat untuk karyawan Apotek Gita Farma, 
 1. **Google Spreadsheet (1 spreadsheet, 2 tab):**
    - Tab `medicines`: header `id`, `name`, `barcode`, `sku`, `price`, `uom`, `alt_uom`, `updated_at`
    - Tab `admins`: header `email`, `name`, `role`, `active` (isi `TRUE` untuk admin aktif)
-2. **Google Service Account:**
-   - Aktifkan Google Sheets API di Google Cloud Console.
-   - Unduh file JSON key Service Account ke `credentials/service-account.json`.
-   - Bagikan (Share) Spreadsheet ke email Service Account sebagai **Editor** agar admin CRUD dapat menulis balik ke Google Sheet.
+2. **Google Workload Identity Federation (WIF — Tanpa Service Account JSON Key):**
+   - Aktifkan **Google Sheets API**, **IAM Service Account Credentials API**, dan **Security Token Service API** di Google Cloud Console.
+   - Buat Service Account (tanpa membuat JSON key), lalu bagikan (Share) Spreadsheet ke email Service Account tersebut sebagai **Editor**.
+   - Buat **Workload Identity Pool** dan **OIDC Provider** di GCP IAM, lalu berikan role `roles/iam.workloadIdentityUser` pada Service Account untuk principal OIDC Anda.
+   - Generate file konfigurasi WIF (`"type": "external_account"` — tidak berisi private key) untuk VPS/Docker:
+     ```bash
+     mkdir -p credentials
+     gcloud iam workload-identity-pools create-cred-config \
+       projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/POOL_ID/providers/PROVIDER_ID \
+       --service-account=SERVICE_ACCOUNT_EMAIL \
+       --credential-source-file=/app/credentials/oidc-token \
+       --output-file=./credentials/wif-config.json
+     ```
+     *(Simpan/perbarui file OIDC token di `./credentials/oidc-token` pada host VPS; folder `./credentials` otomatis di-mount read-only ke `/app/credentials` di container Docker. Jika OIDC token diambil dari endpoint HTTP lokal, ganti `--credential-source-file` dengan `--credential-source-url`.)*
+   - **Alternatif untuk Development Lokal (Tanpa File Key):**
+     Kosongkan `GOOGLE_APPLICATION_CREDENTIALS=` di `.env`, lalu jalankan:
+     ```bash
+     gcloud auth application-default login --impersonate-service-account=SERVICE_ACCOUNT_EMAIL
+     ```
 3. **Google OAuth 2.0 Client ID (Web):**
    - Buat OAuth 2.0 Client ID bertipe **Web application** di Google Cloud Console.
    - Tambahkan **Authorized JavaScript origins** (mis. `http://localhost:5173` untuk dev dan `https://harga.domainanda.com` untuk produksi).

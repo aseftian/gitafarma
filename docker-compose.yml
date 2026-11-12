@@ -11,7 +11,8 @@ services:
     environment:
       HTTP_ADDR: ":8080"
       STORAGE_PATH: "/app/data/gitafarma.db"
-      GOOGLE_APPLICATION_CREDENTIALS: "/app/credentials/service-account.json"
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-/app/credentials/wif-config.json}
+      GOOGLE_IMPERSONATE_SERVICE_ACCOUNT: ${GOOGLE_IMPERSONATE_SERVICE_ACCOUNT:-}
     volumes:
       - backend_data:/app/data
       - ./credentials:/app/credentials:ro

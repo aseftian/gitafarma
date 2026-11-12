@@ -4,12 +4,15 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/ardisan/gitafarma/backend/internal/domain"
 	"google.golang.org/api/googleapi"
+	"google.golang.org/api/option"
 )
 
 func TestParseMedicinesSheet(t *testing.T) {
@@ -161,5 +164,89 @@ func TestRetryWithBackoff(t *testing.T) {
 	})
 	if err == nil || attempts != 1 {
 		t.Fatalf("expected immediate failure without retry for 403, attempts=%d err=%v", attempts, err)
+	}
+}
+
+func TestDetectCredentialsTypeAndResolveOptions(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	cases := []struct {
+		name     string
+		jsonBody string
+		wantType option.CredentialsType
+		wantErr  bool
+	}{
+		{
+			name: "workload_identity_federation_oidc",
+			jsonBody: `{
+				"universe_domain": "googleapis.com",
+				"type": "external_account",
+				"audience": "//iam.googleapis.com/projects/123456/locations/global/workloadIdentityPools/vps-pool/providers/oidc-provider",
+				"subject_token_type": "urn:ietf:params:oauth:token-type:jwt",
+				"token_url": "https://sts.googleapis.com/v1/token",
+				"credential_source": {
+					"file": "/app/credentials/oidc-token"
+				}
+			}`,
+			wantType: option.ExternalAccount,
+		},
+		{
+			name:     "impersonated_service_account",
+			jsonBody: `{"type": "impersonated_service_account"}`,
+			wantType: option.ImpersonatedServiceAccount,
+		},
+		{
+			name:     "authorized_user_adc",
+			jsonBody: `{"type": "authorized_user"}`,
+			wantType: option.AuthorizedUser,
+		},
+		{
+			name:     "legacy_service_account",
+			jsonBody: `{"type": "service_account"}`,
+			wantType: option.ServiceAccount,
+		},
+		{
+			name:     "missing_type_field",
+			jsonBody: `{"universe_domain": "googleapis.com"}`,
+			wantErr:  true,
+		},
+		{
+			name:     "unsupported_type_field",
+			jsonBody: `{"type": "unknown_type"}`,
+			wantErr:  true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			credFile := filepath.Join(tmpDir, tc.name+".json")
+			if err := os.WriteFile(credFile, []byte(tc.jsonBody), 0o600); err != nil {
+				t.Fatalf("write temp cred file: %v", err)
+			}
+			gotType, err := detectCredentialsType(credFile)
+			if tc.wantErr {
+				if err == nil {
+					t.Fatalf("expected error for %s, got nil", tc.name)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("detectCredentialsType(%s): %v", tc.name, err)
+			}
+			if gotType != tc.wantType {
+				t.Fatalf("detectCredentialsType(%s) = %q, want %q", tc.name, gotType, tc.wantType)
+			}
+
+			opts, err := resolveClientOptions(context.Background(), credFile, "")
+			if err != nil || len(opts) != 2 {
+				t.Fatalf("resolveClientOptions(%s) len=%d err=%v, want 2 options", tc.name, len(opts), err)
+			}
+		})
+	}
+
+	// Empty credentialsFile should use Application Default Credentials (only scope option)
+	opts, err := resolveClientOptions(context.Background(), "   ", "")
+	if err != nil || len(opts) != 1 {
+		t.Fatalf("expected 1 option for default ADC mode, got len=%d err=%v", len(opts), err)
 	}
 }

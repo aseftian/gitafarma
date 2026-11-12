@@ -13,6 +13,8 @@ data/
 !.env.example
 credentials/
 *service-account*.json
+*wif-config*.json
+*oidc*token*
 *credentials*.json
 *client_secret*.json
 *.pem
